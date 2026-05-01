@@ -8,9 +8,9 @@ router = Router()
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
     await message.answer(
-        "🎨 Привет! Я бот для генерации изображений.\n"
-        "Отправь команду /image и описание.\n"
-        "Пример: /image красный цветок на белом фоне"
+        "Привет! Я хуесос.\n"
+        "Яблоке.\n"
+        "Пример: /image козочка"
     )
 
 @router.message(Command("image"))
@@ -19,7 +19,7 @@ async def generate_image(message: types.Message):
     prompt = message.text.replace("/image", "").strip()
 
     if not prompt:
-        await message.answer("❌ Напиши описание после команды /image")
+        await message.answer("Пошли нахер /image")
         return
 
     await message.answer(f"🎨 Генерирую: {prompt[:100]}... (обычно 10-20 секунд)")
