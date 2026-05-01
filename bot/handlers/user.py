@@ -4,16 +4,6 @@ import urllib.parse
 from aiogram import Router, types
 from aiogram.filters import Command
 
-router = Router()
-
-@router.message(Command("start"))
-async def cmd_start(message: types.Message):
-    await message.answer(
-        "🎨 Привет! Я бот для генерации изображений.\n"
-        "Отправь команду /image и описание.\n"
-        "Пример: /image красный цветок"
-    )
-
 @router.message(Command("image"))
 async def generate_image(message: types.Message):
     prompt = message.text.replace("/image", "").strip()
@@ -25,14 +15,26 @@ async def generate_image(message: types.Message):
     await message.answer(f"🎨 Генерирую: {prompt[:100]}...")
 
     encoded_prompt = urllib.parse.quote(prompt)
-    # Формируем URL картинки. Главное отличие: просто передаём URL в reply_photo
-    image_url = f"https://pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&model=flux"
+    url = f"https://pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&model=flux"
 
     try:
-        # Отправляем фото, передавая прямую ссылку на URL
-        await message.reply_photo(
-            photo=image_url,
-            caption=f"✨ Сгенерировано по запросу: {prompt[:200]}"
-        )
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+
+            # Создаём объект InputFile из байтов
+            from aiogram.types import BufferedInputFile
+            photo_file = BufferedInputFile(
+                file=response.content,
+                filename="generated.jpg"
+            )
+
+            await message.reply_photo(
+                photo=photo_file,
+                caption=f"✨ Сгенерировано по запросу: {prompt[:200]}"
+            )
+
+    except httpx.TimeoutException:
+        await message.answer("❌ Превышено время ожидания. Попробуйте более простой запрос.")
     except Exception as e:
         await message.answer(f"❌ Ошибка: {e}")
