@@ -1,66 +1,51 @@
-from aiogram import Router, types, F
-from aiogram.filters import Command
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-from bot.config import config, client
 import io
 import httpx
+from aiogram import Router, types
+from aiogram.filters import Command
 
 router = Router()
-
-# Машина состояний для ожидания промпта
-class GenerateState(StatesGroup):
-    waiting_for_prompt = State()
 
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
     await message.answer(
-        "🎨 Привет! Я бот для генерации изображений через DALL-E 3\n\n"
-        "📝 Как использовать:\n"
-        "• Отправь /image - начнём генерацию\n"
-        "• Или просто напиши описание после /image\n\n"
-        "Пример: /image кот в космосе в стиле киберпанк\n\n"
-        "💰 Пока все генерации бесплатные!"
+        "🎨 Привет! Я бот для генерации изображений.\n"
+        "Отправь команду /image и описание.\n"
+        "Пример: /image красный цветок на белом фоне"
     )
 
 @router.message(Command("image"))
-async def cmd_image(message: types.Message, state: FSMContext):
+async def generate_image(message: types.Message):
+    # Получаем текст после команды
     prompt = message.text.replace("/image", "").strip()
-    
+
     if not prompt:
-        await message.answer("❌ Напиши описание после /image\nПример: /image кот в космосе")
+        await message.answer("❌ Напиши описание после команды /image")
         return
-    
-    await message.answer(f"🎨 Генерирую: {prompt}\nОбычно 10-20 секунд...")
-    
+
+    await message.answer(f"🎨 Генерирую: {prompt[:100]}... (обычно 10-20 секунд)")
+
+    # Кодируем промпт для URL
+    import urllib.parse
+    encoded_prompt = urllib.parse.quote(prompt)
+
+    # Используем Pollinations API (бесплатно, без ключей)
+    url = f"https://pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&model=flux"
+
     try:
-        # Генерируем картинку через DALL-E 3 (используем клиент из config)
-        response = await client.images.generate(
-            model="dall-e-3",
-            prompt=prompt,
-            size="1024x1024",
-            quality="standard",
-            n=1
-        )
-        
-        image_url = response.data[0].url
-        
-        # Скачиваем изображение
-        async with httpx.AsyncClient() as http_client:
-            img_response = await http_client.get(image_url)
-            img_bytes = io.BytesIO(img_response.content)
-            img_bytes.seek(0)
-            
-            # Отправляем фото
-            await message.answer_photo(
-                photo=types.BufferedInputFile(
-                    img_bytes.getvalue(), 
-                    filename="generated.png"
-                ),
-                caption=f"✨ Сгенерировано по запросу:\n{prompt[:200]}"
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+
+            # Отправляем изображение пользователю
+            photo_bytes = io.BytesIO(response.content)
+            photo_bytes.seek(0)
+
+            await message.reply_photo(
+                photo=photo_bytes,
+                caption=f"✨ Сгенерировано по запросу: {prompt[:200]}"
             )
-        
+
+    except httpx.TimeoutException:
+        await message.answer("❌ Превышено время ожидания. Попробуйте более простой запрос.")
     except Exception as e:
-        await message.answer(f"❌ Ошибка: {str(e)}\n\nПроверьте баланс в ProxyAPI или попробуйте другой промпт.")
-    
-    await state.clear()
+        await message.answer(f"❌ Ошибка: {e}")
