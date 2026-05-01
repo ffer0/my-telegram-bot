@@ -1,5 +1,6 @@
 import io
 import httpx
+import urllib.parse
 from aiogram import Router, types
 from aiogram.filters import Command
 
@@ -8,27 +9,22 @@ router = Router()
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
     await message.answer(
-        "Привет! Я хуесос.\n"
-        "Яблоке.\n"
-        "Пример: /image козочка"
+        "🎨 Привет! Я бот для генерации изображений.\n"
+        "Отправь команду /image и описание.\n"
+        "Пример: /image красный цветок"
     )
 
 @router.message(Command("image"))
 async def generate_image(message: types.Message):
-    # Получаем текст после команды
     prompt = message.text.replace("/image", "").strip()
 
     if not prompt:
-        await message.answer("Пошли нахер /image")
+        await message.answer("❌ Напиши описание после команды /image")
         return
 
-    await message.answer(f"🎨 Генерирую: {prompt[:100]}... (обычно 10-20 секунд)")
+    await message.answer(f"🎨 Генерирую: {prompt[:100]}...")
 
-    # Кодируем промпт для URL
-    import urllib.parse
     encoded_prompt = urllib.parse.quote(prompt)
-
-    # Используем Pollinations API (бесплатно, без ключей)
     url = f"https://pollinations.ai/prompt/{encoded_prompt}?width=1024&height=1024&nologo=true&model=flux"
 
     try:
@@ -36,7 +32,6 @@ async def generate_image(message: types.Message):
             response = await client.get(url)
             response.raise_for_status()
 
-            # Отправляем изображение пользователю
             photo_bytes = io.BytesIO(response.content)
             photo_bytes.seek(0)
 
